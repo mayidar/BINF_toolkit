@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 This script converts a GenBank file (.gbk or .gb) from Stdin into a Sequin feature table (.tbl), which is an input file of tbl2asn used for creating an ASN.1 file (.sqn).
@@ -50,76 +50,136 @@ Licence: GNU GPL 2.1
 """
 
 from __future__ import print_function
+
 import sys
-from Bio import SeqIO
 from argparse import ArgumentParser
 
+from Bio import SeqIO
+
+
 def parse_args():
-# Extract arguments from the command line
-	parser = ArgumentParser(description= 'Read arguments: species, strain, BioProject, prefix')
-	parser.add_argument('--mincontigsize', type = int, required = False, default = 200, help = 'The minimum contig length')
-	parser.add_argument('--prefix', type = str, required = False, default = 'seq', help = 'The prefix of output filenames')
-	parser.add_argument('--modifiers', type = str, required = True, default = 'modifiers.txt', help = 'The text file containing a single line of FASTA head modifiers')
-	return parser.parse_args()
+    # Extract arguments from the command line
+    parser = ArgumentParser(
+        description="Read arguments: species, strain, BioProject, prefix"
+    )
+    parser.add_argument(
+        "--mincontigsize",
+        type=int,
+        required=False,
+        default=200,
+        help="The minimum contig length",
+    )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        required=False,
+        default="seq",
+        help="The prefix of output filenames",
+    )
+    parser.add_argument(
+        "--modifiers",
+        type=str,
+        required=True,
+        default="modifiers.txt",
+        help="The text file containing a single line of FASTA head modifiers",
+    )
+    return parser.parse_args()
+
 
 def read_modifiers(file):
-# This function only reads the first line of the modifier file. So please ensure that all modifiers are put in the first line.
-	with open(file, 'rU') as f:
-		s = f.readline()  # only read once
-	return s
+    # This function only reads the first line of the modifier file. So please ensure that all modifiers are put in the first line.
+    with open(file, "rU") as f:
+        s = f.readline()  # only read once
+    return s
 
-allowed_qualifiers = ['locus_tag', 'gene', 'product', 'pseudo', 'protein_id', 'gene_desc', 'old_locus_tag', 'note', 'inference', \
-					  'organism', 'mol_type', 'strain', 'sub_species', 'isolation-source', 'country', \
-					  'collection_date']  # In GenBank files, the qualifier 'collection-date' is written as 'collection_date'.
-'''
+
+allowed_qualifiers = [
+    "locus_tag",
+    "gene",
+    "product",
+    "pseudo",
+    "protein_id",
+    "gene_desc",
+    "old_locus_tag",
+    "note",
+    "inference",
+    "organism",
+    "mol_type",
+    "strain",
+    "sub_species",
+    "isolation-source",
+    "country",
+    "collection_date",
+]  # In GenBank files, the qualifier 'collection-date' is written as 'collection_date'.
+"""
 These are selected qualifiers because we do not want to see qualifiers such as 'translation', 'transl_table', or 'codon_start' in the feature table.
 Qualifiers 'organism', 'mol_type', 'strain', 'sub_species', 'isolation-source', 'country' belong to the feature 'source'.
-'''
+"""
+
 
 def main():
-	args = parse_args()  # read arguments
-	contig_num = 0
-	fasta_fh = open(args.prefix + '.fsa', 'w')  # the file handle for the fasta file
-	feature_fh = open(args.prefix + '.tbl', 'w')  # the file handle for the feature table
-	modifiers = read_modifiers(args.modifiers)  # read the modifiers from a text file
-	records = list(SeqIO.parse(sys.stdin, 'genbank'))  # read a GenBank file from the standard input and convert it into a list of SeqRecord objects
+    args = parse_args()  # read arguments
+    contig_num = 0
+    fasta_fh = open(args.prefix + ".fsa", "w")  # the file handle for the fasta file
+    feature_fh = open(
+        args.prefix + ".tbl", "w"
+    )  # the file handle for the feature table
+    modifiers = read_modifiers(args.modifiers)  # read the modifiers from a text file
+    records = list(
+        SeqIO.parse(sys.stdin, "genbank")
+    )  # read a GenBank file from the standard input and convert it into a list of SeqRecord objects
 
-	for rec in records:  # for every SeqRecord object in the list 'records'
-		if len(rec) <= args.mincontigsize:  # filter out small contigs
-			print('skipping small contig %s' % (rec.id), file=sys.stderr)
-			continue  # start a new 'for' loop
-		contig_num += 1
-		print(rec.name)  # print the contig name to STDOUT
-		
-		# write the fasta file 
-		rec.description = modifiers
-		SeqIO.write([rec], fasta_fh, 'fasta')  # Prints this contig's sequence to the fasta file. The sequence header will be rec.description.
+    for rec in records:  # for every SeqRecord object in the list 'records'
+        if len(rec) <= args.mincontigsize:  # filter out small contigs
+            print("skipping small contig %s" % (rec.id), file=sys.stderr)
+            continue  # start a new 'for' loop
+        contig_num += 1
+        print(rec.name)  # print the contig name to STDOUT
 
-		# write the feature table
-		print('>Feature %s' % (rec.name), file = feature_fh)  # write the first line of this record in the feature table: the LOCUS name
-		for f in rec.features:
-			# print the coordinates
-			if f.strand == 1:
-				print('%d\t%d\t%s' % (f.location.nofuzzy_start + 1, f.location.nofuzzy_end, f.type), file = feature_fh)
-			else:
-				print('%d\t%d\t%s' % (f.location.nofuzzy_end, f.location.nofuzzy_start + 1, f.type), file = feature_fh)
+        # write the fasta file
+        rec.description = modifiers
+        SeqIO.write(
+            [rec], fasta_fh, "fasta"
+        )  # Prints this contig's sequence to the fasta file. The sequence header will be rec.description.
 
-			if (f.type == 'CDS') and ('product' not in f.qualifiers):
-				f.qualifiers['product'] = 'hypothetical protein'
-			# print qualifiers (keys and values)
-			for (key, values) in f.qualifiers.items():
-				'''
-				Apply the iteritems() method of the dictionary f.qualifiers for (key, values) pairs
-				iteritems() is a generator that yields 2-tuples for a dictionary. It saves time and memory but is slower than the items() method.
-				'''
-				if key not in allowed_qualifiers:
-					continue  # start a new 'for' loop of f, skipping the following 'for' statement of v
-				for v in values:  # else, write all values under this key (qualifier's name)
-					print('\t\t\t%s\t%s' % (key, v), file = feature_fh)
-	fasta_fh.close()  # finish the generation of the FASTA file
-	feature_fh.close()  # finish the generation of the feature table
-	print(str(contig_num) + ' records have been converted.')
+        # write the feature table
+        print(
+            ">Feature %s" % (rec.name), file=feature_fh
+        )  # write the first line of this record in the feature table: the LOCUS name
+        for f in rec.features:
+            # print the coordinates
+            if f.strand == 1:
+                print(
+                    "%d\t%d\t%s"
+                    % (f.location.nofuzzy_start + 1, f.location.nofuzzy_end, f.type),
+                    file=feature_fh,
+                )
+            else:
+                print(
+                    "%d\t%d\t%s"
+                    % (f.location.nofuzzy_end, f.location.nofuzzy_start + 1, f.type),
+                    file=feature_fh,
+                )
+
+            if (f.type == "CDS") and ("product" not in f.qualifiers):
+                f.qualifiers["product"] = "hypothetical protein"
+            # print qualifiers (keys and values)
+            for key, values in f.qualifiers.items():
+                """
+                Apply the iteritems() method of the dictionary f.qualifiers for (key, values) pairs
+                iteritems() is a generator that yields 2-tuples for a dictionary. It saves time and memory but is slower than the items() method.
+                """
+                if key not in allowed_qualifiers:
+                    continue  # start a new 'for' loop of f, skipping the following 'for' statement of v
+                for (
+                    v
+                ) in values:  # else, write all values under this key (qualifier's name)
+                    print("\t\t\t%s\t%s" % (key, v), file=feature_fh)
+    fasta_fh.close()  # finish the generation of the FASTA file
+    feature_fh.close()  # finish the generation of the feature table
+    print(str(contig_num) + " records have been converted.")
+
 
 # call the main function
-if __name__ == '__main__':
-	main()
+if __name__ == "__main__":
+    main()
