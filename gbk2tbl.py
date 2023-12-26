@@ -88,7 +88,7 @@ def parse_args():
 
 def read_modifiers(file):
     # This function only reads the first line of the modifier file. So please ensure that all modifiers are put in the first line.
-    with open(file, "rU") as f:
+    with open(file) as f:
         s = f.readline()  # only read once
     return s
 
