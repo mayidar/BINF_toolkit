@@ -104,12 +104,13 @@ allowed_qualifiers = [
     "note",
     "inference",
     "organism",
-    "mol_type",
+    #"mol_type",
     "strain",
     "sub_species",
     "isolation-source",
     "country",
     "collection_date",
+    "transl_table" # added by mayidar, it's essential to deal with unknown for GenBank species'
 ]  # In GenBank files, the qualifier 'collection-date' is written as 'collection_date'.
 """
 These are selected qualifiers because we do not want to see qualifiers such as 'translation', 'transl_table', or 'codon_start' in the feature table.
